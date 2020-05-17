@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="2465bdd7-3e93-4bac-b5f4-ad3786bd1c73" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="0bbe2ae5-a22d-420a-9249-2e76a3b26cec" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="rootmysql" database="muledemos" />
+	</db:config>
+	<db:config name="Oracle_config" doc:name="Database Config" doc:id="7db9d93c-a181-45c0-a311-74b7bd1af066" >
+		<db:oracle-connection host="localhost" user="shivareddy" password="root" instance="xe"/>
+	</db:config>
+	<flow name="oracle-database" doc:id="1d7755c4-502d-4a72-b2c3-9b9484db0827" >
+		<http:listener doc:name="Listener" doc:id="e8accced-4bfb-4f4e-9c50-2f3b90dcc201" config-ref="HTTP_Listener_config" path="/oracledbdemo"/>
+		<db:select doc:name="Select" doc:id="9ef5b857-3488-4051-a844-3cac6f55ae82" config-ref="Oracle_config">
+			<db:sql >select * from emp where empno = :emp</db:sql>
+			<db:input-parameters ><![CDATA[#[{
+	"emp" : attributes.queryParams.emp
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="4e6e895c-ed92-413e-ba3c-25ea7304ebd0" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="mySQL-database" doc:id="36ab2e1c-711b-46d8-9e1b-58c1d5c406be" >
+		<http:listener doc:name="Listener" doc:id="a144e1fa-a340-48bd-a1b2-8de71af6e588" config-ref="HTTP_Listener_config" path="/dbdemo"/>
+		<set-variable value="#[attributes.queryParams.operation]" doc:name="Set Variable" doc:id="5eaf4ec7-663a-4f6d-a165-3df0040fa38b" variableName="operation"/>
+		<choice doc:name="Choice" doc:id="a4534b42-ef1b-4b7f-a000-c3c0c47fc9f9" >
+			<when expression='#[vars.operation == "update"]'>
+				<db:update doc:name="Update" doc:id="a14adcb2-15b4-47f7-8caa-22bd1c557c4f" config-ref="Database_Config">
+					<db:sql >update  person set phone = :phone where id = :id</db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	"phone" : payload.phone,
+	"id": attributes.queryParams.id
+}]]]></db:input-parameters>
+				</db:update>
+				<db:select doc:name="Select" doc:id="b9836e4b-1e14-48fd-8e9a-ad71e1ed56a7" config-ref="Database_Config">
+					<db:sql >select * from person</db:sql>
+				</db:select>
+			</when>
+			<when expression='#[vars.operation == "delete"]'>
+				<db:delete doc:name="Delete" doc:id="6be952ab-21ac-47b0-baa5-abd532c01fa4" config-ref="Database_Config">
+					<db:sql >delete from person where id = :id</db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	"id" : attributes.queryParams.id
+}]]]></db:input-parameters>
+				</db:delete>
+				<db:select doc:name="Select" doc:id="9759ba05-3e32-4979-9e76-4e2998a85208" config-ref="Database_Config">
+					<db:sql >select * from person</db:sql>
+				</db:select>
+			</when>
+			<when expression='#[vars.operation == "insert"]'>
+				<db:insert doc:name="Insert" doc:id="0b9b08d7-49af-45dd-a1e2-ee1db40dc0e0" config-ref="Database_Config">
+					<db:sql >insert into person (name,phone,country) values ( :name , :phone, :country)</db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	"name": payload.name,
+	"phone" : payload.phone,
+	"country" : payload.country
+}]]]></db:input-parameters>
+				</db:insert>
+				<db:select doc:name="Select" doc:id="228e934d-d1df-45b5-8cb3-9e95cb547732" config-ref="Database_Config">
+					<db:sql >select * from person</db:sql>
+				</db:select>
+			</when>
+			<otherwise >
+				<db:select doc:name="Select" doc:id="7acdbd62-306a-49bf-a80b-1a66e42d271c" config-ref="Database_Config">
+			<db:sql>select * from person</db:sql>
+			<db:input-parameters><![CDATA[#[{
+	"id": attributes.queryParams.id default '1'
+}]]]></db:input-parameters>
+		</db:select>
+			</otherwise>
+		</choice>
+		<ee:transform doc:name="Transform Message" doc:id="48ab3654-bd09-4c0e-b6ba-c0434b40f70d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
